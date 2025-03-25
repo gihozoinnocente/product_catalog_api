@@ -4,22 +4,17 @@ const { sequelize } = require('../config/database');
 /**
  * Get all categories
  * @route GET /api/categories
- * @access Public
+ * @access Public (All roles can view categories)
  */
 exports.getAllCategories = async (req, res, next) => {
   try {
-    const { includeInactive, parentId } = req.query;
+    const { includeInactive } = req.query;
     
     const where = {};
     
-    // Filter by active status
-    if (includeInactive !== 'true') {
+    // Filter by active status - for non-admin users, always filter inactive categories
+    if (includeInactive !== 'true' || !req.user || req.user.role !== 'admin') {
       where.isActive = true;
-    }
-    
-    // Filter by parent category
-    if (parentId) {
-      where.parentId = parentId === 'null' ? null : parseInt(parentId, 10);
     }
     
     const categories = await Category.findAll({
@@ -40,22 +35,23 @@ exports.getAllCategories = async (req, res, next) => {
 /**
  * Get category by ID
  * @route GET /api/categories/:id
- * @access Public
+ * @access Public (All roles can view categories)
  */
 exports.getCategoryById = async (req, res, next) => {
   try {
-    const category = await Category.findByPk(req.params.id, {
-      include: [
-        {
-          model: Category,
-          as: 'children',
-          where: { isActive: true },
-          required: false
-        }
-      ]
-    });
+    const category = await Category.findByPk(req.params.id);
     
     if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'Category not found'
+        }
+      });
+    }
+    
+    // Non-admin users can only view active categories
+    if (!category.isActive && (!req.user || req.user.role !== 'admin')) {
       return res.status(404).json({
         success: false,
         error: {
@@ -76,30 +72,15 @@ exports.getCategoryById = async (req, res, next) => {
 /**
  * Create new category
  * @route POST /api/categories
- * @access Private
+ * @access Private (Admin only)
  */
 exports.createCategory = async (req, res, next) => {
   try {
-    const { name, description, parentId, imageUrl, isActive } = req.body;
-    
-    // Check if parent category exists if parentId is provided
-    if (parentId) {
-      const parentCategory = await Category.findByPk(parentId);
-      
-      if (!parentCategory) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'Parent category not found'
-          }
-        });
-      }
-    }
+    const { name, description, imageUrl, isActive } = req.body;
     
     const category = await Category.create({
       name,
       description,
-      parentId: parentId || null,
       imageUrl,
       isActive: isActive !== undefined ? isActive : true
     });
@@ -116,11 +97,11 @@ exports.createCategory = async (req, res, next) => {
 /**
  * Update category
  * @route PUT /api/categories/:id
- * @access Private
+ * @access Private (Admin only)
  */
 exports.updateCategory = async (req, res, next) => {
   try {
-    const { name, description, parentId, imageUrl, isActive } = req.body;
+    const { name, description, imageUrl, isActive } = req.body;
     
     const category = await Category.findByPk(req.params.id);
     
@@ -133,35 +114,10 @@ exports.updateCategory = async (req, res, next) => {
       });
     }
     
-    // Check if parent category exists if parentId is provided
-    if (parentId && parentId !== category.parentId) {
-      // Prevent circular references
-      if (parseInt(req.params.id, 10) === parseInt(parentId, 10)) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'Category cannot be its own parent'
-          }
-        });
-      }
-      
-      const parentCategory = await Category.findByPk(parentId);
-      
-      if (!parentCategory) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'Parent category not found'
-          }
-        });
-      }
-    }
-    
     // Update category
     await category.update({
       name: name || category.name,
       description: description !== undefined ? description : category.description,
-      parentId: parentId !== undefined ? (parentId || null) : category.parentId,
       imageUrl: imageUrl !== undefined ? imageUrl : category.imageUrl,
       isActive: isActive !== undefined ? isActive : category.isActive
     });
@@ -178,7 +134,7 @@ exports.updateCategory = async (req, res, next) => {
 /**
  * Delete category
  * @route DELETE /api/categories/:id
- * @access Private
+ * @access Private (Admin only)
  */
 exports.deleteCategory = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -192,22 +148,6 @@ exports.deleteCategory = async (req, res, next) => {
         success: false,
         error: {
           message: 'Category not found'
-        }
-      });
-    }
-    
-    // Check if category has subcategories
-    const subcategories = await Category.findAll({
-      where: { parentId: req.params.id },
-      transaction
-    });
-    
-    if (subcategories.length > 0) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: 'Cannot delete category with subcategories'
         }
       });
     }
@@ -227,12 +167,12 @@ exports.deleteCategory = async (req, res, next) => {
   }
 };
 
+
 /**
  * Get category tree
  * @route GET /api/categories/tree
  * @access Public
- */
-exports.getCategoryTree = async (req, res, next) => {
+ */exports.getCategoryTree = async (req, res, next) => {
   try {
     // Get all root categories (parentId is null)
     const rootCategories = await Category.findAll({

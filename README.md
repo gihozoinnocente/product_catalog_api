@@ -1,6 +1,6 @@
 # Product Catalog API
 
-A RESTful API for a product catalog system that powers an e-commerce platform. This project allows businesses to manage their product offerings with features like product management, categorization, inventory tracking, and reporting.
+A RESTful API for a product catalog system that powers an e-commerce platform. This project allows businesses to manage their product offerings with features like product management, categorization, inventory tracking, reporting, and role-based access control.
 
 ## Features
 
@@ -11,6 +11,11 @@ A RESTful API for a product catalog system that powers an e-commerce platform. T
 - 📊 **Inventory Tracking**: Monitor stock levels for products and variants
 - 💰 **Pricing & Discounts**: Support for base pricing and discount types
 - 📈 **Reporting**: Generate insights about inventory status and product distribution
+- 🔐 **Authentication**: Secure JWT-based authentication system
+- 👥 **Role-Based Permissions**: Three distinct user roles (Admin, Seller, Buyer) with appropriate permissions
+- 🛡️ **Rate Limiting**: Protection against abuse and DoS attacks
+- 🖼️ **Image Handling**: Complete support for product images with multiple sizes
+- ⚡ **Performance Optimizations**: Caching, compression, and query optimization
 
 ## Tech Stack
 
@@ -18,13 +23,26 @@ A RESTful API for a product catalog system that powers an e-commerce platform. T
 - **Express.js** - Web application framework
 - **MySQL** - Relational database
 - **Sequelize** - ORM for MySQL
-- **Swagger** - API documentation
 - **JWT** - Authentication mechanism
+- **Redis** - Optional caching layer
+- **Sharp** - Image processing library
+- **Swagger** - API documentation
+
+## User Roles and Permissions
+
+The API implements three distinct user roles:
+
+- **Admin**: Full access to all resources and operations.
+- **Seller**: Can manage their own products and variants, view categories.
+- **Buyer**: Read-only access to catalog data.
+
+See [ROLE_PERMISSIONS.md](./ROLE_PERMISSIONS.md) for detailed information about role permissions.
 
 ## Prerequisites
 
 - Node.js (v14 or higher)
 - MySQL (v8 or higher)
+- Redis (optional, for enhanced caching)
 - npm or yarn
 
 ## Installation
@@ -69,61 +87,105 @@ A RESTful API for a product catalog system that powers an e-commerce platform. T
    http://localhost:3000/api-docs
    ```
 
+## API Authentication
+
+To access protected endpoints, you must include a valid JWT token in the Authorization header:
+
+```
+Authorization: Bearer <your_token>
+```
+
+To obtain a token:
+
+1. Register a new user: `POST /api/auth/register`
+2. Login to get a token: `POST /api/auth/login`
+
 ## Database Schema
 
 The application uses the following main data models:
 
+- **Users**: Authentication and role-based access control
 - **Categories**: Hierarchical organization of products
-- **Products**: Core product information
+- **Products**: Core product information with seller association
 - **Variants**: Variations of products (sizes, colors, etc.)
 - **Inventory**: Stock management for products and variants
 
 ## API Endpoints
 
+### Authentication
+
+| Method | Endpoint                       | Description              | Access     |
+|--------|--------------------------------|--------------------------|------------|
+| POST   | /api/auth/register             | Register a new user      | Public     |
+| POST   | /api/auth/login                | User login               | Public     |
+| GET    | /api/auth/me                   | Get current user profile | All Users  |
+| PUT    | /api/auth/update-details       | Update user details      | All Users  |
+| PUT    | /api/auth/update-password      | Update password          | All Users  |
+| POST   | /api/auth/forgot-password      | Request password reset   | Public     |
+| POST   | /api/auth/reset-password/:token| Reset password           | Public     |
+
 ### Products
 
-| Method | Endpoint                           | Description                       |
-|--------|-----------------------------------|-----------------------------------|
-| GET    | /api/products                     | Get all products                  |
-| GET    | /api/products/:id                 | Get product by ID                 |
-| POST   | /api/products                     | Create a new product              |
-| PUT    | /api/products/:id                 | Update a product                  |
-| DELETE | /api/products/:id                 | Delete a product                  |
-| GET    | /api/products/search              | Search products                   |
-| GET    | /api/products/:id/variants        | Get variants of a product         |
-| POST   | /api/products/:id/variants        | Create a variant for a product    |
-| PUT    | /api/products/:id/variants/:id    | Update a product variant          |
-| DELETE | /api/products/:id/variants/:id    | Delete a product variant          |
+| Method | Endpoint                           | Description                       | Access               |
+|--------|-----------------------------------|-----------------------------------|----------------------|
+| GET    | /api/products                     | Get all products                  | All Users            |
+| GET    | /api/products/:id                 | Get product by ID                 | All Users            |
+| POST   | /api/products                     | Create a new product              | Admin, Seller        |
+| PUT    | /api/products/:id                 | Update a product                  | Admin, Product Owner |
+| DELETE | /api/products/:id                 | Delete a product                  | Admin, Product Owner |
+| GET    | /api/products/search              | Search products                   | All Users            |
+| GET    | /api/products/:id/variants        | Get variants of a product         | All Users            |
+| POST   | /api/products/:id/variants        | Create a variant for a product    | Admin, Product Owner |
+| PUT    | /api/products/:id/variants/:id    | Update a product variant          | Admin, Product Owner |
+| DELETE | /api/products/:id/variants/:id    | Delete a product variant          | Admin, Product Owner |
 
 ### Categories
 
-| Method | Endpoint                   | Description                  |
-|--------|---------------------------|------------------------------|
-| GET    | /api/categories           | Get all categories           |
-| GET    | /api/categories/:id       | Get category by ID           |
-| GET    | /api/categories/tree      | Get category hierarchy tree  |
-| POST   | /api/categories           | Create a new category        |
-| PUT    | /api/categories/:id       | Update a category            |
-| DELETE | /api/categories/:id       | Delete a category            |
+| Method | Endpoint                   | Description                  | Access     |
+|--------|---------------------------|------------------------------|------------|
+| GET    | /api/categories           | Get all categories           | All Users  |
+| GET    | /api/categories/:id       | Get category by ID           | All Users  |
+| GET    | /api/categories/tree      | Get category hierarchy tree  | All Users  |
+| POST   | /api/categories           | Create a new category        | Admin      |
+| PUT    | /api/categories/:id       | Update a category            | Admin      |
+| DELETE | /api/categories/:id       | Delete a category            | Admin      |
 
 ### Inventory
 
-| Method | Endpoint                         | Description                        |
-|--------|---------------------------------|------------------------------------|
-| GET    | /api/inventory                  | Get all inventory items            |
-| GET    | /api/inventory/:id              | Get inventory by ID                |
-| PUT    | /api/inventory/:id              | Update inventory                   |
-| GET    | /api/inventory/low-stock        | Get low stock items                |
-| GET    | /api/inventory/out-of-stock     | Get out of stock items             |
-| PATCH  | /api/inventory/update-quantity  | Batch update inventory quantities  |
+| Method | Endpoint                         | Description                        | Access               |
+|--------|---------------------------------|------------------------------------|----------------------|
+| GET    | /api/inventory                  | Get all inventory items            | Admin, Seller        |
+| GET    | /api/inventory/:id              | Get inventory by ID                | Admin, Product Owner |
+| PUT    | /api/inventory/:id              | Update inventory                   | Admin, Product Owner |
+| GET    | /api/inventory/low-stock        | Get low stock items                | Admin, Seller        |
+| GET    | /api/inventory/out-of-stock     | Get out of stock items             | Admin, Seller        |
+| PATCH  | /api/inventory/update-quantity  | Batch update inventory quantities  | Admin, Product Owner |
 
 ### Reports
 
-| Method | Endpoint                             | Description                         |
-|--------|-------------------------------------|-------------------------------------|
-| GET    | /api/reports/inventory-status       | Get inventory status report         |
-| GET    | /api/reports/category-distribution  | Get product category distribution   |
-| GET    | /api/reports/low-stock-alert        | Get low stock items by category     |
+| Method | Endpoint                             | Description                         | Access         |
+|--------|-------------------------------------|-------------------------------------|----------------|
+| GET    | /api/reports/inventory-status       | Get inventory status report         | Admin, Seller  |
+| GET    | /api/reports/category-distribution  | Get product category distribution   | Admin, Seller  |
+| GET    | /api/reports/low-stock-alert        | Get low stock items by category     | Admin, Seller  |
+
+### Search
+
+| Method | Endpoint                           | Description                       | Access     |
+|--------|-----------------------------------|-----------------------------------|------------|
+| GET    | /api/search/products              | Advanced search with filters      | All Users  |
+| GET    | /api/search/fulltext              | Full-text search                  | All Users  |
+| GET    | /api/search/suggestions/:productId| Get product suggestions           | All Users  |
+| GET    | /api/search/trending              | Get trending products             | All Users  |
+
+### Images
+
+| Method | Endpoint                               | Description                     | Access               |
+|--------|-----------------------------------------|---------------------------------|----------------------|
+| POST   | /api/images/products/:productId        | Upload product images           | Admin, Product Owner |
+| POST   | /api/images/variants/:variantId        | Upload variant images           | Admin, Product Owner |
+| DELETE | /api/images/products/:productId/:index | Delete product image            | Admin, Product Owner |
+| POST   | /api/images/responsive                 | Generate responsive image URLs  | All Users            |
 
 ## Error Handling
 
@@ -132,7 +194,10 @@ The API uses standard HTTP status codes:
 - `200` - Success
 - `201` - Created
 - `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden
 - `404` - Not Found
+- `429` - Too Many Requests
 - `500` - Server Error
 
 Error responses follow this format:
@@ -152,10 +217,6 @@ Error responses follow this format:
 }
 ```
 
-## Data Validation
-
-Input validation is performed using express-validator. All endpoints that accept request bodies validate the input data and return appropriate error messages if validation fails.
-
 ## Testing
 
 Run the automated tests:
@@ -169,32 +230,9 @@ You can also test the API manually using tools like:
 - cURL
 - VS Code's REST Client extension
 
-## Development
+## High-Grade Features
 
-For development purposes, the server can be run in development mode, which enables:
-- Automatic server restart on file changes (nodemon)
-- Detailed logging
-- Database schema synchronization
-
-```bash
-npm run dev
-```
-
-## Assumptions and Limitations
-
-- The API assumes that product variants have their own inventory records.
-- Categories can have a hierarchical structure, but deleting a category with subcategories is not allowed.
-- The API doesn't include user authentication and authorization, which would be necessary in a production environment.
-- The current implementation doesn't include webhooks or events for inventory changes.
-
-## Future Enhancements
-
-- User authentication and authorization
-- Order management integration
-- Webhook support for inventory changes
-- Bulk import/export functionality
-- Media management for product images
-- Cache implementation for improved performance
+For more information about the advanced features implemented in this API, see [HIGH_GRADE_FEATURES.md](./HIGH_GRADE_FEATURES.md).
 
 ## License
 

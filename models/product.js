@@ -1,6 +1,5 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const Category = require('./category');
 
 /**
  * @swagger
@@ -13,6 +12,7 @@ const Category = require('./category');
  *         - sku
  *         - basePrice
  *         - categoryId
+ *         - userId
  *       properties:
  *         id:
  *           type: integer
@@ -41,6 +41,9 @@ const Category = require('./category');
  *         categoryId:
  *           type: integer
  *           description: Category ID the product belongs to
+ *         userId:
+ *           type: integer
+ *           description: ID of the seller who created the product
  *         tags:
  *           type: string
  *           description: Comma-separated tags
@@ -73,6 +76,7 @@ const Category = require('./category');
  *         discountType: percentage
  *         discountValue: 10
  *         categoryId: 2
+ *         userId: 3
  *         tags: smartphone,electronics,new
  *         imageUrls: ["https://example.com/images/smartphone-x-1.jpg", "https://example.com/images/smartphone-x-2.jpg"]
  *         attributes: {"color": "Black", "storage": "128GB", "screen": "6.5 inch"}
@@ -148,9 +152,18 @@ const Product = sequelize.define('Product', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'Categories',
+      model: 'categories',
       key: 'id'
     }
+  },
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    },
+    comment: 'ID of the seller who created the product'
   },
   tags: {
     type: DataTypes.STRING(255),
@@ -210,6 +223,9 @@ const Product = sequelize.define('Product', {
       fields: ['categoryId']
     },
     {
+      fields: ['userId']
+    },
+    {
       fields: ['tags']
     },
     {
@@ -220,9 +236,5 @@ const Product = sequelize.define('Product', {
     }
   ]
 });
-
-// Associations
-Product.belongsTo(Category, { foreignKey: 'categoryId' });
-Category.hasMany(Product, { foreignKey: 'categoryId' });
 
 module.exports = Product;

@@ -2,6 +2,8 @@ const express = require('express');
 const { body } = require('express-validator');
 const productController = require('../controllers/productController');
 const validate = require('../middleware/validator');
+const { protect } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/permission');
 
 const router = express.Router();
 
@@ -48,6 +50,11 @@ const router = express.Router();
  *         schema:
  *           type: boolean
  *         description: Filter by featured status
+ *       - in: query
+ *         name: sellerId
+ *         schema:
+ *           type: integer
+ *         description: Filter by seller ID
  *       - in: query
  *         name: page
  *         schema:
@@ -184,8 +191,10 @@ router.get('/:id', productController.getProductById);
  * /api/products:
  *   post:
  *     summary: Create a new product
- *     description: Create a new product in the catalog
+ *     description: Create a new product in the catalog (Admin or Seller only)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -252,9 +261,13 @@ router.get('/:id', productController.getProductById);
  *                   $ref: '#/components/schemas/Product'
  *       400:
  *         description: Invalid input
+ *       403:
+ *         description: Not authorized to create products
  */
 router.post(
   '/',
+  protect,
+  checkPermission('products', 'create'),
   [
     body('name')
       .trim()
@@ -346,8 +359,10 @@ router.post(
  * /api/products/{id}:
  *   put:
  *     summary: Update a product
- *     description: Update an existing product by ID
+ *     description: Update an existing product by ID (Admin or Product Owner)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -417,9 +432,13 @@ router.post(
  *         description: Product not found
  *       400:
  *         description: Invalid input
+ *       403:
+ *         description: Not authorized to update this product
  */
 router.put(
   '/:id',
+  protect,
+  checkPermission('products', 'update'),
   [
     body('name')
       .optional()
@@ -511,8 +530,10 @@ router.put(
  * /api/products/{id}:
  *   delete:
  *     summary: Delete a product
- *     description: Delete a product by ID
+ *     description: Delete a product by ID (Admin or Product Owner)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -534,8 +555,15 @@ router.put(
  *                   type: object
  *       404:
  *         description: Product not found
+ *       403:
+ *         description: Not authorized to delete this product
  */
-router.delete('/:id', productController.deleteProduct);
+router.delete(
+  '/:id',
+  protect,
+  checkPermission('products', 'delete'),
+  productController.deleteProduct
+);
 
 /**
  * @swagger
@@ -577,8 +605,10 @@ router.get('/:id/variants', productController.getProductVariants);
  * /api/products/{id}/variants:
  *   post:
  *     summary: Create product variant
- *     description: Create a new variant for a specific product
+ *     description: Create a new variant for a specific product (Admin or Product Owner)
  *     tags: [Products, Variants]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -640,11 +670,15 @@ router.get('/:id/variants', productController.getProductVariants);
  *                   $ref: '#/components/schemas/Variant'
  *       404:
  *         description: Product not found
+ *       403:
+ *         description: Not authorized to add variants to this product
  *       400:
  *         description: Invalid input
  */
 router.post(
   '/:id/variants',
+  protect,
+  checkPermission('variants', 'create'),
   [
     body('sku')
       .trim()
@@ -712,8 +746,10 @@ router.post(
  * /api/products/{productId}/variants/{id}:
  *   put:
  *     summary: Update product variant
- *     description: Update a specific variant of a product
+ *     description: Update a specific variant of a product (Admin or Product Owner)
  *     tags: [Products, Variants]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: productId
@@ -777,11 +813,15 @@ router.post(
  *                   $ref: '#/components/schemas/Variant'
  *       404:
  *         description: Product or variant not found
+ *       403:
+ *         description: Not authorized to update variants of this product
  *       400:
  *         description: Invalid input
  */
 router.put(
   '/:productId/variants/:id',
+  protect,
+  checkPermission('variants', 'update'),
   [
     body('sku')
       .optional()
@@ -849,8 +889,10 @@ router.put(
  * /api/products/{productId}/variants/{id}:
  *   delete:
  *     summary: Delete product variant
- *     description: Delete a specific variant of a product
+ *     description: Delete a specific variant of a product (Admin or Product Owner)
  *     tags: [Products, Variants]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: productId
@@ -878,7 +920,14 @@ router.put(
  *                   type: object
  *       404:
  *         description: Product or variant not found
+ *       403:
+ *         description: Not authorized to delete variants of this product
  */
-router.delete('/:productId/variants/:id', productController.deleteProductVariant);
+router.delete(
+  '/:productId/variants/:id',
+  protect,
+  checkPermission('variants', 'delete'),
+  productController.deleteProductVariant
+);
 
 module.exports = router;

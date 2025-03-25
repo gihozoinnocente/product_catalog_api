@@ -2,6 +2,8 @@ const express = require('express');
 const { body } = require('express-validator');
 const categoryController = require('../controllers/categoryController');
 const validate = require('../middleware/validator');
+const { protect } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/permission');
 
 const router = express.Router();
 
@@ -17,7 +19,7 @@ const router = express.Router();
  *         name: includeInactive
  *         schema:
  *           type: boolean
- *         description: Include inactive categories (default false)
+ *         description: Include inactive categories (admin only, default false)
  *       - in: query
  *         name: parentId
  *         schema:
@@ -102,8 +104,10 @@ router.get('/:id', categoryController.getCategoryById);
  * /api/categories:
  *   post:
  *     summary: Create a new category
- *     description: Create a new product category
+ *     description: Create a new product category (Admin only)
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -137,9 +141,13 @@ router.get('/:id', categoryController.getCategoryById);
  *                   $ref: '#/components/schemas/Category'
  *       400:
  *         description: Invalid input
+ *       403:
+ *         description: Not authorized to create categories
  */
 router.post(
   '/',
+  protect,
+  checkPermission('categories', 'create'),
   [
     body('name')
       .trim()
@@ -173,8 +181,10 @@ router.post(
  * /api/categories/{id}:
  *   put:
  *     summary: Update a category
- *     description: Update an existing category by ID
+ *     description: Update an existing category by ID (Admin only)
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -214,9 +224,13 @@ router.post(
  *         description: Category not found
  *       400:
  *         description: Invalid input
+ *       403:
+ *         description: Not authorized to update categories
  */
 router.put(
   '/:id',
+  protect,
+  checkPermission('categories', 'update'),
   [
     body('name')
       .optional()
@@ -251,8 +265,10 @@ router.put(
  * /api/categories/{id}:
  *   delete:
  *     summary: Delete a category
- *     description: Delete a category by ID
+ *     description: Delete a category by ID (Admin only)
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -276,7 +292,14 @@ router.put(
  *         description: Category not found
  *       400:
  *         description: Cannot delete category with subcategories
+ *       403:
+ *         description: Not authorized to delete categories
  */
-router.delete('/:id', categoryController.deleteCategory);
+router.delete(
+  '/:id',
+  protect,
+  checkPermission('categories', 'delete'),
+  categoryController.deleteCategory
+);
 
 module.exports = router;

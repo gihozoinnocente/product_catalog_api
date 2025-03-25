@@ -1,3 +1,4 @@
+// config/database.js
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
@@ -24,7 +25,7 @@ const connectDB = async () => {
     await sequelize.authenticate();
     console.log('Database connection has been established successfully.');
     
-    // Sync models with database (in development only)
+    // Sync models with database
     if (process.env.NODE_ENV === 'development') {
       await sequelize.sync({ alter: true });
       console.log('All models were synchronized successfully.');

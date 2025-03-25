@@ -1,7 +1,5 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const Variant = require('./variant');
-const Product = require('./product');
 
 /**
  * @swagger
@@ -162,12 +160,5 @@ const Inventory = sequelize.define('Inventory', {
     }
   }
 });
-
-// Associations
-Inventory.belongsTo(Product, { foreignKey: 'productId', onDelete: 'CASCADE' });
-Product.hasOne(Inventory, { foreignKey: 'productId', onDelete: 'CASCADE' });
-
-Inventory.belongsTo(Variant, { foreignKey: 'variantId', onDelete: 'CASCADE' });
-Variant.hasOne(Inventory, { foreignKey: 'variantId', onDelete: 'CASCADE' });
 
 module.exports = Inventory;

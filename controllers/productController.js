@@ -4,11 +4,12 @@ const Product = require('../models/product');
 const Category = require('../models/category');
 const Variant = require('../models/variant');
 const Inventory = require('../models/inventory');
+const User = require('../models/user');
 
 /**
  * Get all products with filtering, sorting, and pagination
  * @route GET /api/products
- * @access Public
+ * @access Public (All roles can view products)
  */
 exports.getAllProducts = async (req, res, next) => {
   try {
@@ -20,6 +21,7 @@ exports.getAllProducts = async (req, res, next) => {
       tags,
       isActive,
       isFeatured,
+      sellerId,
       page = 1,
       limit = 10,
       sortBy = 'createdAt',
@@ -49,12 +51,25 @@ exports.getAllProducts = async (req, res, next) => {
       where.tags = { [Op.like]: `%${tags}%` };
     }
     
+    // For non-admins, only show active products
     if (isActive !== undefined) {
       where.isActive = isActive === 'true';
+    } else if (!req.user || req.user.role !== 'admin') {
+      where.isActive = true;
     }
     
     if (isFeatured !== undefined) {
       where.isFeatured = isFeatured === 'true';
+    }
+    
+    // Filter by seller
+    if (sellerId) {
+      where.userId = sellerId;
+    }
+    
+    // If user is a seller, only show their products
+    if (req.user && req.user.role === 'seller') {
+      where.userId = req.user.id;
     }
     
     // Pagination
@@ -78,6 +93,11 @@ exports.getAllProducts = async (req, res, next) => {
         {
           model: Variant,
           attributes: ['id', 'sku', 'name', 'price']
+        },
+        {
+          model: User,
+          as: 'seller',
+          attributes: ['id', 'firstName', 'lastName']
         }
       ],
       order: [[orderBy, order]],
@@ -104,7 +124,7 @@ exports.getAllProducts = async (req, res, next) => {
 /**
  * Get product by ID
  * @route GET /api/products/:id
- * @access Public
+ * @access Public (All roles can view products)
  */
 exports.getProductById = async (req, res, next) => {
   try {
@@ -126,11 +146,29 @@ exports.getProductById = async (req, res, next) => {
         {
           model: Inventory,
           attributes: ['quantity', 'lowStockThreshold', 'reservedQuantity']
+        },
+        {
+          model: User,
+          as: 'seller',
+          attributes: ['id', 'firstName', 'lastName']
         }
       ]
     });
     
     if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if product is active or user is admin/seller of the product
+    if (!product.isActive && 
+        (!req.user || 
+         (req.user.role !== 'admin' && 
+          !(req.user.role === 'seller' && req.user.id === product.userId)))) {
       return res.status(404).json({
         success: false,
         error: {
@@ -151,7 +189,7 @@ exports.getProductById = async (req, res, next) => {
 /**
  * Create new product
  * @route POST /api/products
- * @access Private
+ * @access Private (Admins and Sellers only)
  */
 exports.createProduct = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -195,6 +233,7 @@ exports.createProduct = async (req, res, next) => {
       discountType: discountType || 'none',
       discountValue: discountValue || 0,
       categoryId,
+      userId: req.user.id, // Set the seller ID from the authenticated user
       tags,
       imageUrls,
       attributes,
@@ -226,6 +265,11 @@ exports.createProduct = async (req, res, next) => {
         {
           model: Inventory,
           attributes: ['quantity', 'lowStockThreshold', 'reservedQuantity']
+        },
+        {
+          model: User,
+          as: 'seller',
+          attributes: ['id', 'firstName', 'lastName']
         }
       ]
     });
@@ -243,7 +287,7 @@ exports.createProduct = async (req, res, next) => {
 /**
  * Update product
  * @route PUT /api/products/:id
- * @access Private
+ * @access Private (Admin or Product Owner)
  */
 exports.updateProduct = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -273,6 +317,17 @@ exports.updateProduct = async (req, res, next) => {
         success: false,
         error: {
           message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if user is authorized to update this product
+    if (req.user.role !== 'admin' && product.userId !== req.user.id) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'You are not authorized to update this product'
         }
       });
     }
@@ -367,6 +422,11 @@ exports.updateProduct = async (req, res, next) => {
         {
           model: Inventory,
           attributes: ['quantity', 'lowStockThreshold', 'reservedQuantity']
+        },
+        {
+          model: User,
+          as: 'seller',
+          attributes: ['id', 'firstName', 'lastName']
         }
       ]
     });
@@ -384,7 +444,7 @@ exports.updateProduct = async (req, res, next) => {
 /**
  * Delete product
  * @route DELETE /api/products/:id
- * @access Private
+ * @access Private (Admin or Product Owner)
  */
 exports.deleteProduct = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -398,6 +458,17 @@ exports.deleteProduct = async (req, res, next) => {
         success: false,
         error: {
           message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if user is authorized to delete this product
+    if (req.user.role !== 'admin' && product.userId !== req.user.id) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'You are not authorized to delete this product'
         }
       });
     }
@@ -420,7 +491,7 @@ exports.deleteProduct = async (req, res, next) => {
 /**
  * Search products
  * @route GET /api/products/search
- * @access Public
+ * @access Public (All roles can search products)
  */
 exports.searchProducts = async (req, res, next) => {
   try {
@@ -456,6 +527,11 @@ exports.searchProducts = async (req, res, next) => {
         {
           model: Category,
           attributes: ['id', 'name']
+        },
+        {
+          model: User,
+          as: 'seller',
+          attributes: ['id', 'firstName', 'lastName']
         }
       ],
       order: [['name', 'ASC']],
@@ -482,13 +558,26 @@ exports.searchProducts = async (req, res, next) => {
 /**
  * Get product variants
  * @route GET /api/products/:id/variants
- * @access Public
+ * @access Public (All roles can view variants)
  */
 exports.getProductVariants = async (req, res, next) => {
   try {
     const product = await Product.findByPk(req.params.id);
     
     if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if product is active or user is admin/seller of the product
+    if (!product.isActive && 
+        (!req.user || 
+         (req.user.role !== 'admin' && 
+          !(req.user.role === 'seller' && req.user.id === product.userId)))) {
       return res.status(404).json({
         success: false,
         error: {
@@ -521,7 +610,7 @@ exports.getProductVariants = async (req, res, next) => {
 /**
  * Create product variant
  * @route POST /api/products/:id/variants
- * @access Private
+ * @access Private (Admin or Product Owner)
  */
 exports.createProductVariant = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -547,6 +636,17 @@ exports.createProductVariant = async (req, res, next) => {
         success: false,
         error: {
           message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if user is authorized to add variants to this product
+    if (req.user.role !== 'admin' && product.userId !== req.user.id) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'You are not authorized to add variants to this product'
         }
       });
     }
@@ -618,7 +718,7 @@ exports.createProductVariant = async (req, res, next) => {
 /**
  * Update product variant
  * @route PUT /api/products/:productId/variants/:id
- * @access Private
+ * @access Private (Admin or Product Owner)
  */
 exports.updateProductVariant = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -645,6 +745,17 @@ exports.updateProductVariant = async (req, res, next) => {
         success: false,
         error: {
           message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if user is authorized to update variants of this product
+    if (req.user.role !== 'admin' && product.userId !== req.user.id) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'You are not authorized to update variants of this product'
         }
       });
     }
@@ -755,7 +866,7 @@ exports.updateProductVariant = async (req, res, next) => {
 /**
  * Delete product variant
  * @route DELETE /api/products/:productId/variants/:id
- * @access Private
+ * @access Private (Admin or Product Owner)
  */
 exports.deleteProductVariant = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -770,6 +881,17 @@ exports.deleteProductVariant = async (req, res, next) => {
         success: false,
         error: {
           message: 'Product not found'
+        }
+      });
+    }
+    
+    // Check if user is authorized to delete variants of this product
+    if (req.user.role !== 'admin' && product.userId !== req.user.id) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'You are not authorized to delete variants of this product'
         }
       });
     }
