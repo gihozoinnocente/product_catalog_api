@@ -53,19 +53,6 @@ const { sequelize } = require('../config/database');
  *           type: string
  *           format: date-time
  *           description: Last update timestamp
- *       example:
- *         id: 1
- *         productId: 1
- *         sku: SM-X-001-BLK-128
- *         name: Smartphone X - Black, 128GB
- *         price: 799.99
- *         discountType: none
- *         discountValue: 0
- *         options: {"color": "Black", "storage": "128GB"}
- *         imageUrls: ["https://example.com/images/smartphone-x-black-1.jpg"]
- *         isActive: true
- *         createdAt: 2023-01-01T00:00:00.000Z
- *         updatedAt: 2023-01-01T00:00:00.000Z
  */
 const Variant = sequelize.define('Variant', {
   id: {
@@ -77,7 +64,7 @@ const Variant = sequelize.define('Variant', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'Products',
+      model: 'products',  // Use lowercase table name to match actual table
       key: 'id'
     }
   },

@@ -16,6 +16,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const authRoutes = require('./routes/authRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const imageRoutes = require('./routes/imageRoutes');
+const setupAssociations = require('./models/associations');
 
 const app = express();
 
@@ -50,6 +51,11 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/images', imageRoutes);
+
+// Make sure to call setupAssociations() before starting your server
+// Add this before your server starts listening
+setupAssociations();
+console.log('Model associations have been set up');
 
 // Health Check
 app.get('/health', (req, res) => {

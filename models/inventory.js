@@ -46,18 +46,6 @@ const { sequelize } = require('../config/database');
  *           type: string
  *           format: date-time
  *           description: Last update timestamp
- *       example:
- *         id: 1
- *         productId: null
- *         variantId: 1
- *         sku: SM-X-001-BLK-128
- *         quantity: 50
- *         lowStockThreshold: 10
- *         reservedQuantity: 2
- *         location: "WAREHOUSE-A"
- *         lastRestockDate: 2023-01-15T00:00:00.000Z
- *         createdAt: 2023-01-01T00:00:00.000Z
- *         updatedAt: 2023-01-01T00:00:00.000Z
  */
 const Inventory = sequelize.define('Inventory', {
   id: {
@@ -69,7 +57,7 @@ const Inventory = sequelize.define('Inventory', {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'Products',
+      model: 'products',  // Use lowercase table name to match actual table
       key: 'id'
     }
   },
@@ -77,7 +65,7 @@ const Inventory = sequelize.define('Inventory', {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'Variants',
+      model: 'variants',  // Use lowercase table name to match actual table
       key: 'id'
     }
   },

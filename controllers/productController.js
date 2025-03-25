@@ -192,9 +192,12 @@ exports.getProductById = async (req, res, next) => {
  * @access Private (Admins and Sellers only)
  */
 exports.createProduct = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   
   try {
+    // Start the transaction
+    transaction = await sequelize.transaction();
+    
     const {
       name,
       description,
@@ -224,7 +227,25 @@ exports.createProduct = async (req, res, next) => {
       });
     }
     
-    // Create product
+    // Check if SKU is already in use
+    if (sku) {
+      const existingSku = await Product.findOne({
+        where: { sku },
+        transaction
+      });
+      
+      if (existingSku) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'SKU is already in use'
+          }
+        });
+      }
+    }
+    
+    // Create the product
     const product = await Product.create({
       name,
       description,
@@ -245,17 +266,20 @@ exports.createProduct = async (req, res, next) => {
     if (inventory) {
       await Inventory.create({
         productId: product.id,
+        variantId: null, // Explicitly set variantId to null for product inventory
         sku: product.sku,
         quantity: inventory.quantity || 0,
         lowStockThreshold: inventory.lowStockThreshold || 10,
         reservedQuantity: inventory.reservedQuantity || 0,
-        location: inventory.location
+        location: inventory.location,
+        lastRestockDate: inventory.quantity > 0 ? new Date() : null
       }, { transaction });
     }
     
+    // Commit the transaction
     await transaction.commit();
     
-    // Get the product with its relationships
+    // Get the complete product with its relationships
     const createdProduct = await Product.findByPk(product.id, {
       include: [
         {
@@ -263,13 +287,13 @@ exports.createProduct = async (req, res, next) => {
           attributes: ['id', 'name']
         },
         {
-          model: Inventory,
-          attributes: ['quantity', 'lowStockThreshold', 'reservedQuantity']
-        },
-        {
           model: User,
           as: 'seller',
           attributes: ['id', 'firstName', 'lastName']
+        },
+        {
+          model: Inventory,
+          attributes: ['quantity', 'lowStockThreshold', 'reservedQuantity']
         }
       ]
     });
@@ -279,7 +303,10 @@ exports.createProduct = async (req, res, next) => {
       data: createdProduct
     });
   } catch (error) {
-    await transaction.rollback();
+    // Only roll back the transaction if it exists and is still active
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -290,9 +317,11 @@ exports.createProduct = async (req, res, next) => {
  * @access Private (Admin or Product Owner)
  */
 exports.updateProduct = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   
   try {
+    transaction = await sequelize.transaction();
+    
     const {
       name,
       description,
@@ -350,7 +379,10 @@ exports.updateProduct = async (req, res, next) => {
     // Check if SKU is already in use
     if (sku && sku !== product.sku) {
       const existingProduct = await Product.findOne({
-        where: { sku },
+        where: { 
+          sku,
+          id: { [Op.ne]: product.id }
+        },
         transaction
       });
       
@@ -384,7 +416,10 @@ exports.updateProduct = async (req, res, next) => {
     // Update inventory if provided
     if (inventory) {
       const existingInventory = await Inventory.findOne({
-        where: { productId: product.id },
+        where: { 
+          productId: product.id,
+          variantId: null // Ensure we're getting the product's inventory, not a variant's
+        },
         transaction
       });
       
@@ -400,6 +435,7 @@ exports.updateProduct = async (req, res, next) => {
       } else {
         await Inventory.create({
           productId: product.id,
+          variantId: null, // Explicitly set variantId to null for product inventory
           sku: product.sku,
           quantity: inventory.quantity || 0,
           lowStockThreshold: inventory.lowStockThreshold || 10,
@@ -436,7 +472,9 @@ exports.updateProduct = async (req, res, next) => {
       data: updatedProduct
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -447,9 +485,11 @@ exports.updateProduct = async (req, res, next) => {
  * @access Private (Admin or Product Owner)
  */
 exports.deleteProduct = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   
   try {
+    transaction = await sequelize.transaction();
+    
     const product = await Product.findByPk(req.params.id, { transaction });
     
     if (!product) {
@@ -483,7 +523,9 @@ exports.deleteProduct = async (req, res, next) => {
       data: {}
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -613,9 +655,11 @@ exports.getProductVariants = async (req, res, next) => {
  * @access Private (Admin or Product Owner)
  */
 exports.createProductVariant = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   
   try {
+    transaction = await sequelize.transaction();
+    
     const {
       sku,
       name,
@@ -684,6 +728,7 @@ exports.createProductVariant = async (req, res, next) => {
     if (inventory) {
       await Inventory.create({
         variantId: variant.id,
+        productId: null, // Explicitly set productId to null for variant inventory
         sku: variant.sku,
         quantity: inventory.quantity || 0,
         lowStockThreshold: inventory.lowStockThreshold || 10,
@@ -710,7 +755,9 @@ exports.createProductVariant = async (req, res, next) => {
       data: createdVariant
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -721,9 +768,11 @@ exports.createProductVariant = async (req, res, next) => {
  * @access Private (Admin or Product Owner)
  */
 exports.updateProductVariant = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   
   try {
+    transaction = await sequelize.transaction();
+    
     const {
       sku,
       name,
@@ -815,7 +864,10 @@ exports.updateProductVariant = async (req, res, next) => {
     // Update inventory if provided
     if (inventory) {
       const existingInventory = await Inventory.findOne({
-        where: { variantId: variant.id },
+        where: { 
+          variantId: variant.id,
+          productId: null // Ensure we're getting the variant's inventory
+        },
         transaction
       });
       
@@ -831,6 +883,7 @@ exports.updateProductVariant = async (req, res, next) => {
       } else {
         await Inventory.create({
           variantId: variant.id,
+          productId: null, // Explicitly set productId to null for variant inventory
           sku: variant.sku,
           quantity: inventory.quantity || 0,
           lowStockThreshold: inventory.lowStockThreshold || 10,
@@ -858,7 +911,9 @@ exports.updateProductVariant = async (req, res, next) => {
       data: updatedVariant
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -869,9 +924,11 @@ exports.updateProductVariant = async (req, res, next) => {
  * @access Private (Admin or Product Owner)
  */
 exports.deleteProductVariant = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   
   try {
+    transaction = await sequelize.transaction();
+    
     // Verify product exists
     const product = await Product.findByPk(req.params.productId, { transaction });
     
@@ -925,7 +982,9 @@ exports.deleteProductVariant = async (req, res, next) => {
       data: {}
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
