@@ -100,6 +100,8 @@ To obtain a token:
 1. Register a new user: `POST /api/auth/register`
 2. Login to get a token: `POST /api/auth/login`
 
+See [Auth_EndPoint.md](./Auth_EndPoint.md) for detailed information about request body and expected result.
+
 ## Database Schema
 
 The application uses the following main data models:
