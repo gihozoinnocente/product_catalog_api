@@ -100,7 +100,6 @@ To obtain a token:
 1. Register a new user: `POST /api/auth/register`
 2. Login to get a token: `POST /api/auth/login`
 
-See [Auth_EndPoint.md](./Auth_EndPoint.md) for detailed information about request body and expected result.
 
 ## Database Schema
 
@@ -189,6 +188,14 @@ The application uses the following main data models:
 | DELETE | /api/images/products/:productId/:index | Delete product image            | Admin, Product Owner |
 | POST   | /api/images/responsive                 | Generate responsive image URLs  | All Users            |
 
+## Request Body and Response
+
+See [Auth_EndPoint.md](./Auth_EndPoint.md) for detailed information about request body and expected result.
+See [Product_EndPoint.md](./Product_EndPoint.md) for detailed information about request body and expected result.
+See [Category_EndPoint.md](./Category_EndPoint.md) for detailed information about request body and expected result.
+See [Inventory_EndPoint.md](./Inventory_EndPoint.md) for detailed information about request body and expected result.
+See [Variants_EndPoint.md](./Variants_EndPoint.md) for detailed information about request body and expected result.
+
 ## Error Handling
 
 The API uses standard HTTP status codes:
@@ -232,9 +239,6 @@ You can also test the API manually using tools like:
 - cURL
 - VS Code's REST Client extension
 
-## High-Grade Features
-
-For more information about the advanced features implemented in this API, see [HIGH_GRADE_FEATURES.md](./HIGH_GRADE_FEATURES.md).
 
 ## License
 
